@@ -87,15 +87,27 @@ app.get('/api/users/:_id/logs', async (req, res) => {
     if (!user) return res.status(404).json({ error: "Utilisateur non trouvé" });
 
     let filters = { userId: user._id };
-    
+
     if (req.query.from || req.query.to) {
       filters.date = {};
-      if (req.query.from) filters.date.$gte = new Date(req.query.from);
-      if (req.query.to) filters.date.$lte = new Date(req.query.to);
+      if (req.query.from) {
+        const fromDate = new Date(req.query.from);
+        if (isNaN(fromDate)) return res.status(400).json({ error: "Format de date 'from' invalide" });
+        filters.date.$gte = fromDate;
+      }
+      if (req.query.to) {
+        const toDate = new Date(req.query.to);
+        if (isNaN(toDate)) return res.status(400).json({ error: "Format de date 'to' invalide" });
+        filters.date.$lte = toDate;
+      }
     }
 
-    const limit = parseInt(req.query.limit) || 0;
-    const exercises = await Exercise.find(filters).limit(limit).exec();
+    let limit = parseInt(req.query.limit);
+    if (req.query.limit && (isNaN(limit) || limit < 1)) {
+      return res.status(400).json({ error: "Limit doit être un entier positif" });
+    }
+
+    const exercises = await Exercise.find(filters).limit(limit || 0).exec();
 
     res.json({
       username: user.username,
@@ -108,9 +120,11 @@ app.get('/api/users/:_id/logs', async (req, res) => {
       }))
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Erreur lors de la récupération du journal" });
   }
 });
+
 
 const listener = app.listen(process.env.PORT || 3000, () => {
   console.log('Your app is listening on port ' + listener.address().port)
